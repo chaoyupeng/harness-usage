@@ -13,6 +13,7 @@ private enum UsageProvider: String {
 struct PopoverView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var codexService: CodexUsageService
+    @ObservedObject var codexLogService: CodexLogService
     @ObservedObject var historyService: UsageHistoryService
     @ObservedObject var notificationService: NotificationService
     @ObservedObject var appUpdater: AppUpdater
@@ -203,6 +204,18 @@ struct PopoverView: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
+                    thinSeparator
+                    Text("Codex session tokens")
+                        .font(.headline)
+                    let tokenStats = codexLogService.stats
+                    codexTokenRow("Today", value: tokenStats.today.total)
+                    codexTokenRow("All time", value: tokenStats.allTime.total)
+                    codexTokenRow("Input", value: tokenStats.allTime.input)
+                    codexTokenRow("Cached input", value: tokenStats.allTime.cachedInput)
+                    codexTokenRow("Output", value: tokenStats.allTime.output)
+                    Text("Read from local Codex session logs. Cached input and reasoning output are included in input and output totals.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, minHeight: Self.tabContentHeight, alignment: .topLeading)
             }
@@ -288,6 +301,7 @@ struct PopoverView: View {
             if activeProvider == .codex {
                 footerButton(icon: "arrow.clockwise", label: "Refresh") {
                     Task { await codexService.refresh() }
+                    codexLogService.refresh()
                 }
             } else if selectedTab == .usage {
                 footerButton(icon: "arrow.clockwise", label: "Refresh") {
@@ -309,6 +323,15 @@ struct PopoverView: View {
             }
             quitButton
         }
+    }
+
+    private func codexTokenRow(_ label: String, value: Int) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(TokenFormatter.format(value)).monospacedDigit()
+        }
+        .font(.caption)
     }
 
     @ViewBuilder

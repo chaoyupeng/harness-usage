@@ -17,6 +17,7 @@ struct ClaudeUsageBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var service = UsageService()
     @StateObject private var codexService = CodexUsageService()
+    @StateObject private var codexLogService = CodexLogService()
     @StateObject private var historyService = UsageHistoryService()
     @StateObject private var notificationService = NotificationService()
     @StateObject private var appUpdater = AppUpdater()
@@ -29,6 +30,7 @@ struct ClaudeUsageBarApp: App {
             PopoverView(
                 service: service,
                 codexService: codexService,
+                codexLogService: codexLogService,
                 historyService: historyService,
                 notificationService: notificationService,
                 appUpdater: appUpdater,
@@ -48,6 +50,7 @@ struct ClaudeUsageBarApp: App {
                     service.notificationService = notificationService
                     service.startPolling()
                     codexService.startPolling()
+                    codexLogService.startPolling()
                     logService.refresh()
                     modelCatalog.refreshIfStale()
                     updateCheck.checkIfDue()
