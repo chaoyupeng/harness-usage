@@ -74,7 +74,7 @@ final class UpdateCheckService: ObservableObject {
         session: URLSession = .shared,
         defaults: UserDefaults = .standard,
         currentVersion: String? = nil,
-        latestReleaseAPI: URL = URL(string: "https://api.github.com/repos/chaoyupeng/ai-usage/releases/latest")!
+        latestReleaseAPI: URL = URL(string: "https://api.github.com/repos/chaoyupeng/harness-usage/releases/latest")!
     ) {
         self.session = session
         self.defaults = defaults
@@ -138,7 +138,7 @@ final class UpdateCheckService: ObservableObject {
             guard Self.shouldOffer(latest: tag, current: currentVersion, skipped: skipped) else { return }
 
             let page = (json["html_url"] as? String).flatMap(URL.init(string:))
-                ?? URL(string: "https://github.com/chaoyupeng/ai-usage/releases/latest")!
+                ?? URL(string: "https://github.com/chaoyupeng/harness-usage/releases/latest")!
             let update = AvailableUpdate(version: ReleaseVersion(tag)?.description ?? tag, pageURL: page)
             availableUpdate = update
             presentPrompt(for: update)
