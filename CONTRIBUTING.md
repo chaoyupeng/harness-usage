@@ -11,8 +11,8 @@ Thanks for your interest in contributing! This guide will help you get set up an
 ## Getting started
 
 ```sh
-git clone https://github.com/chaoyupeng/ai-usage.git
-cd ai-usage
+git clone https://github.com/chaoyupeng/harness-usage.git
+cd harness-usage
 make app
 ```
 

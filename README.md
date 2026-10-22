@@ -19,13 +19,13 @@ All providers can be used independently. The app refreshes usage in the backgrou
 
 ## Install
 
-Download `ClaudeUsageBar.zip` from the [latest release](https://github.com/chaoyupeng/ai-usage/releases/latest), unzip it, then drag `ClaudeUsageBar.app` to Applications. The bundle retains its previous filename and identifier so existing installations and settings continue to work; its display name is AI Usage.
+Download `ClaudeUsageBar.zip` from the [latest release](https://github.com/chaoyupeng/harness-usage/releases/latest), unzip it, then drag `ClaudeUsageBar.app` to Applications. The bundle retains its previous filename and identifier so existing installations and settings continue to work; its display name is AI Usage.
 
 The app is not Apple-notarized. On first launch, use **System Settings → Privacy & Security → Open Anyway** after macOS blocks it. You can also build locally:
 
 ```sh
-git clone https://github.com/chaoyupeng/ai-usage.git
-cd ai-usage
+git clone https://github.com/chaoyupeng/harness-usage.git
+cd harness-usage
 make app
 make install
 ```
