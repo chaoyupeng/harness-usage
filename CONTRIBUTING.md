@@ -1,4 +1,4 @@
-# Contributing to Claude Usage Bar
+# Contributing to AI Usage
 
 Thanks for your interest in contributing! This guide will help you get set up and make sure your changes land smoothly.
 
@@ -11,8 +11,8 @@ Thanks for your interest in contributing! This guide will help you get set up an
 ## Getting started
 
 ```sh
-git clone https://github.com/chaoyupeng/claude-usage-bar.git
-cd claude-usage-bar
+git clone https://github.com/chaoyupeng/ai-usage.git
+cd ai-usage
 make app
 ```
 

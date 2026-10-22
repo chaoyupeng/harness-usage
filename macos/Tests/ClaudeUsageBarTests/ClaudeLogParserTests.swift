@@ -34,6 +34,18 @@ final class ClaudeLogParserTests: XCTestCase {
         XCTAssertEqual(records[0].usage.total, 650)
     }
 
+    func testRecordedCostTakesPrecedenceOverRateEstimate() {
+        let jsonl = """
+        {"type":"assistant","message":{"id":"m1","model":"claude-opus-5-5","usage":{"input_tokens":1000000,"output_tokens":0}},"costUSD":1.23,"timestamp":"2026-10-01T10:00:00.000Z","sessionId":"s1"}
+        {"type":"assistant","message":{"id":"m1","model":"claude-opus-5-5","usage":{"input_tokens":1000000,"output_tokens":0}},"timestamp":"2026-10-01T10:00:01.000Z","sessionId":"s1"}
+        """
+        let records = ClaudeLogParser.parseJSONLData(Data(jsonl.utf8))
+        let stats = ClaudeLogParser.aggregate(records)
+        XCTAssertEqual(stats.totalMessages, 1)
+        XCTAssertEqual(stats.estimatedCost, 1.23, accuracy: 0.001)
+        XCTAssertEqual(stats.recordedCostCount, 1)
+    }
+
     func testParseCorruptLineSkippedOthersKept() {
         let jsonl = """
         {"type":"assistant","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":10,"output_tokens":20}},"timestamp":"2026-03-18T10:00:00.000Z","sessionId":"s1"}

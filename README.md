@@ -1,138 +1,42 @@
 <p align="center">
-  <img src="macos/Resources/icon.png" width="128" alt="Claude Usage icon">
+  <img src="macos/Resources/icon.png" width="128" alt="AI Usage icon">
 </p>
 
-# Claude Usage
+# AI Usage
 
-A menu bar app that shows your Claude usage at a glance — rate limits, token stats, and more.
+A macOS menu bar app for Claude and Codex usage. It detects signed-in providers automatically: Claude only, Codex only, or both. When both are available, use the provider switcher in the popover.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![License](https://img.shields.io/badge/license-BSD--2--Clause-green)
 
-## Features
+## What it shows
 
-### Usage Tab (OAuth)
-- Menu bar icon with dual-bar showing 5-hour and 7-day utilization
-- Per-window usage with progress bars and reset timers
-- Per-model breakdown (Opus / Sonnet) when available
-- Extra usage tracking with USD currency display
-- Usage history chart with Catmull-Rom interpolation (1h / 6h / 1d / 7d / 30d)
-- Hover over the chart to see exact values at any point
-- Configurable polling interval (5m / 15m / 30m / 1h)
-- OAuth sign-in via browser — no API keys to manage
+- **Claude:** 5-hour and 7-day usage, reset times, model breakdown, extra usage, and history. Sign in through the app if needed.
+- **Codex:** account rate-limit windows and reset times from your local `codex app-server`. Install and sign in to Codex first with `codex login`; the app reads the account status through Codex's documented local protocol and does not read its credentials.
+- **Claude Code tokens:** input, output, cache read/write, daily activity, and API-equivalent cost from local `~/.claude/projects/` logs. The cost uses Claude Code's recorded `costUSD` when available and otherwise applies published per-model rates, including cache duration and relevant pricing modifiers. It is an estimate of API value, **not** your subscription bill or an amount owed.
 
-### Tokens Tab (Local)
-- Parses Claude Code local logs from `~/.claude/projects/`
-- Token counts (input, output, cache read/write) for today and all time
-- Per-model cost estimates
-- Daily breakdown bar chart (14 days)
-- Last-hour per-minute activity graph
-- No authentication required — works offline
-
-### General
-- Runs in the menu bar
-- Checks once a day for a new release and offers the download page
-- Minimal dependencies — SwiftUI, Swift Charts, Sparkle
+All providers can be used independently. The app refreshes usage in the background and shows it in the menu bar.
 
 ## Install
 
-The app is **not notarised by Apple**, so macOS blocks it on first launch. This
-is expected — notarisation requires a paid Apple Developer account. Pick
-whichever route below suits you; both are one-time.
+Download `ClaudeUsageBar.dmg` from the [latest release](https://github.com/chaoyupeng/ai-usage/releases/latest), then drag `ClaudeUsageBar.app` to Applications. The bundle retains its previous filename and identifier so existing installations and settings continue to work; its display name is AI Usage.
 
-Download `ClaudeUsage.dmg` from the
-[latest release](https://github.com/chaoyupeng/claude-usage/releases/latest) and
-drag `ClaudeUsage.app` into `Applications`. Then:
-
-**Route 1 — no Terminal.** Double-click the app. macOS shows
-*"Apple could not verify … is free of malware"* with only **Done** and
-**Move to Bin** — click **Done**, then open **System Settings → Privacy &
-Security**, scroll to the bottom, and click **Open Anyway** next to the message
-about `ClaudeUsageBar`. Confirm, and it launches.
-
-**Route 2 — one command.** Clear the quarantine flag, then open it normally:
+The app is not Apple-notarized. On first launch, use **System Settings → Privacy & Security → Open Anyway** after macOS blocks it. You can also build locally:
 
 ```sh
-xattr -d com.apple.quarantine /Applications/ClaudeUsageBar.app
+git clone https://github.com/chaoyupeng/ai-usage.git
+cd ai-usage
+make app
+make install
 ```
 
-> Use `-d`, not `-dr`. The recursive form fails with *Operation not permitted* on
-> recent macOS, because it tries to modify files inside the signed bundle.
+## Privacy and local data
 
-On older macOS (14 and earlier) right-click → **Open** also worked. It no longer
-does: the current dialog has no bypass button, which is why the two routes above
-exist.
+Claude OAuth credentials and usage history are stored in `~/.config/claude-usage-bar/`. Claude Code transcripts are read locally and never uploaded by this app. The Codex CLI handles its own authentication and contacts OpenAI to fetch its rate limits when the app invokes its local app-server. The app also contacts Anthropic for Claude usage and model names, and GitHub once a day to check for releases.
 
-**From source** — a locally built app is never quarantined, so there is no
-warning at all:
+## Build and test
 
-```sh
-git clone https://github.com/chaoyupeng/claude-usage.git
-cd claude-usage
-make app          # builds macos/ClaudeUsageBar.app
-make install      # copies it to /Applications
-```
-
-## Usage
-
-1. Launch the app — a menu bar icon appears with 5h/7d usage bars
-2. Click the icon to open the popover
-3. **Usage tab**: Click **Sign in with Claude** to authorize via browser, then usage auto-refreshes
-4. **Tokens tab**: Shows Claude Code local token stats immediately (no sign-in needed)
-
-## Data storage
-
-All data is stored locally in `~/.config/claude-usage-bar/`:
-
-| File | Purpose |
-|------|---------|
-| `credentials.json` | OAuth credentials (permissions: `0600`) |
-| `history.json` | Usage history for the chart (30-day retention) |
-
-Token stats are read directly from `~/.claude/projects/` JSONL logs.
-
-The app makes exactly two kinds of outbound request, and neither sends anything
-about you or your usage:
-
-| Request | Purpose |
-|---|---|
-| Anthropic API | Your usage figures and the model list, authorised by your own OAuth sign-in |
-| GitHub releases API | A once-a-day check for a newer version — an unauthenticated `GET`, no request body |
-
-Nothing else leaves your machine. Token and cost figures are computed locally
-from your logs and are never uploaded.
-
-## Project structure
-
-```
-macos/                              # macOS menu bar app (Swift/SwiftUI)
-├── Sources/ClaudeUsageBar/
-│   ├── ClaudeUsageBarApp.swift      # App entry point, menu bar setup
-│   ├── UsageService.swift           # OAuth, polling, API calls
-│   ├── UsageModel.swift             # API response types
-│   ├── UsageHistoryModel.swift      # History data types, time ranges
-│   ├── UsageHistoryService.swift    # Persistence, downsampling
-│   ├── UsageChartView.swift         # Swift Charts usage trajectory
-│   ├── PopoverView.swift            # Main popover UI (Usage + Tokens tabs)
-│   ├── TokenDashboardView.swift     # Tokens tab UI
-│   ├── ClaudeLogService.swift       # JSONL log file scanner
-│   ├── ClaudeLogModels.swift        # Log parser and aggregation
-│   ├── SettingsView.swift           # Settings window
-│   ├── NotificationService.swift    # Usage threshold notifications
-│   ├── MenuBarIconRenderer.swift    # Menu bar icon drawing
-│   ├── StoredCredentials.swift      # Credential persistence
-│   ├── PollingOptionFormatter.swift # Polling interval display labels
-│   ├── AppUpdater.swift             # Sparkle update integration
-│   └── Resources/
-│       ├── claude-logo.png          # Menu bar logo (512px template)
-│       └── en.lproj/Localizable.strings
-├── Tests/ClaudeUsageBarTests/       # Unit tests
-├── Resources/
-│   ├── Info.plist
-│   ├── AppIcon.icns                 # App icon
-│   └── claude-logo.svg             # Source SVG for menu bar logo
-└── Package.swift
-```
+Requires macOS 14 or later and Xcode. Run `swift test` from `macos/`; run `make app` from the repository root. The release bundle is built by `macos/scripts/build.sh`.
 
 ## License
 

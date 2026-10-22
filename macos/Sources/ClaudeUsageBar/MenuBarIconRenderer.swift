@@ -22,7 +22,7 @@ private let cachedLabels: [String: CachedLabel] = {
     let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium)
     let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
     var result = [String: CachedLabel]()
-    for label in ["5h", "7d"] {
+    for label in ["5h", "7d", "Cl", "Cx"] {
         let str = NSAttributedString(string: label, attributes: attrs)
         result[label] = CachedLabel(string: str, size: str.size())
     }
@@ -30,11 +30,35 @@ private let cachedLabels: [String: CachedLabel] = {
 }()
 
 private func drawRow(label: String, barX: CGFloat, barY: CGFloat, labelX: CGFloat, drawBarFill: (CGFloat, CGFloat) -> Void) {
-    if let cached = cachedLabels[label] {
-        let labelY = barY + (barHeight - cached.size.height) / 2
-        cached.string.draw(at: NSPoint(x: labelX + labelWidth - cached.size.width, y: labelY))
-    }
+    let rendered = cachedLabels[label] ?? {
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium)
+        let string = NSAttributedString(string: label, attributes: [.font: font, .foregroundColor: NSColor.black])
+        return CachedLabel(string: string, size: string.size())
+    }()
+    let labelY = barY + (barHeight - rendered.size.height) / 2
+    rendered.string.draw(at: NSPoint(x: labelX + labelWidth - rendered.size.width, y: labelY))
     drawBarFill(barX, barY)
+}
+
+func renderAIUsageIcon(topLabel: String, topPct: Double, bottomLabel: String, bottomPct: Double) -> NSImage {
+    let image = NSImage(size: NSSize(width: iconWidth, height: iconHeight), flipped: true) { _ in
+        let offset = logoSize + logoGap
+        let barX = offset + labelWidth + labelGap
+        let topY = (iconHeight - barHeight * 2 - rowGap) / 2
+        let bottomY = topY + barHeight + rowGap
+        let font = NSFont.systemFont(ofSize: 9, weight: .bold)
+        let mark = NSAttributedString(string: "AI", attributes: [.font: font, .foregroundColor: NSColor.black])
+        mark.draw(at: NSPoint(x: 0, y: (iconHeight - mark.size().height) / 2))
+        drawRow(label: topLabel, barX: barX, barY: topY, labelX: offset) { x, y in
+            drawBar(x: x, y: y, width: barWidth, height: barHeight, cornerRadius: cornerRadius, pct: topPct)
+        }
+        drawRow(label: bottomLabel, barX: barX, barY: bottomY, labelX: offset) { x, y in
+            drawBar(x: x, y: y, width: barWidth, height: barHeight, cornerRadius: cornerRadius, pct: bottomPct)
+        }
+        return true
+    }
+    image.isTemplate = true
+    return image
 }
 
 func renderIcon(pct5h: Double, pct7d: Double) -> NSImage {
