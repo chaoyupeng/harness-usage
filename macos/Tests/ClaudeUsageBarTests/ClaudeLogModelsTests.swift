@@ -118,6 +118,27 @@ final class ClaudeLogModelsTests: XCTestCase {
         }
     }
 
+    func testCurrentModelPricingAndCacheReadDiscounts() {
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000)
+        let cases: [(String, Double)] = [
+            ("claude-opus-5-5", 24.20),
+            ("claude-sonnet-5-5", 12.10),
+            ("claude-fable-5-1", 60.25),
+            ("claude-mythos-5-1", 60.25),
+        ]
+        for (model, expected) in cases {
+            XCTAssertEqual(CostEstimator.estimateCost(model: model, usage: usage, billing: postPromo), expected, accuracy: 0.001, model)
+        }
+        XCTAssertEqual(CostEstimator.estimateCost(model: "claude-opus-5-5", usage: TokenUsage(input: 1_000_000), billing: BillingContext(timestamp: postPromo.timestamp, speed: "fast")), 8.0, accuracy: 0.001)
+    }
+
+    func testHaikuFiveFiveLongPromptPricing() {
+        let short = TokenUsage(input: 99_999, output: 1_000)
+        let long = TokenUsage(input: 100_001, output: 1_000)
+        XCTAssertEqual(CostEstimator.estimateCost(model: "claude-haiku-5-5", usage: short, billing: postPromo), 0.0104999, accuracy: 0.000001)
+        XCTAssertEqual(CostEstimator.estimateCost(model: "claude-haiku-5-5", usage: long, billing: postPromo), 0.0525005, accuracy: 0.000001)
+    }
+
     func testCostEstimatorOpusFourPrefixDoesNotShadowLaterVersions() {
         // "claude-opus-4" ($15/$75) is a prefix of "claude-opus-4-8" ($5/$25);
         // longest-prefix matching must pick the more specific key.

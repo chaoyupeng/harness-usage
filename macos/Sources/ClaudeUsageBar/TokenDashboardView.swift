@@ -120,7 +120,9 @@ struct TokenDashboardView: View {
             .help(stats.costIncludesGuessedRate
                 ? "Includes models with no published rate, priced by family: "
                     + stats.modelsWithoutPublishedRate.sorted().joined(separator: ", ")
-                : "Estimated from published per-model rates.")
+                : stats.recordedCostCount > 0
+                    ? "Uses Claude Code's recorded cost when present; otherwise estimates from published per-model rates. This is API-equivalent pricing, not your subscription bill."
+                    : "Estimated from published per-model rates. This is API-equivalent pricing, not your subscription bill.")
         }
     }
 

@@ -48,6 +48,8 @@ struct MessageRecord {
     var inferenceGeo: String? = nil
     /// `usage.server_tool_use.web_search_requests` — billed per search.
     var webSearchRequests: Int = 0
+    /// Claude Code's own per-response cost, when present in the transcript.
+    var recordedCostUSD: Double? = nil
 
     /// Non-token inputs to this response's price.
     var billing: BillingContext {
@@ -117,6 +119,7 @@ struct AggregatedStats {
     /// means `estimatedCost` includes at least one guessed figure, which the UI
     /// marks rather than presenting as fact.
     var modelsWithoutPublishedRate: Set<String> = []
+    var recordedCostCount: Int = 0
 
     var sessionCount: Int { sessionIds.count }
 
@@ -144,8 +147,11 @@ enum CostEstimator {
     /// cap at 200K, so they cannot produce a long-context request to surcharge.
     /// There is no long-context premium left to model.
     private static let baseRates: [String: Rate] = [
+        "claude-fable-5-1": (10.0, 50.0),
         "claude-fable-5": (10.0, 50.0),
+        "claude-mythos-5-1": (10.0, 50.0),
         "claude-mythos-5": (10.0, 50.0),
+        "claude-opus-5-5": (4.0, 20.0),
         "claude-opus-5": (5.0, 25.0),
         "claude-opus-4-8": (5.0, 25.0),
         "claude-opus-4-7": (5.0, 25.0),
@@ -153,10 +159,12 @@ enum CostEstimator {
         "claude-opus-4-5": (5.0, 25.0),
         "claude-opus-4-1": (15.0, 75.0),
         "claude-opus-4": (15.0, 75.0),
+        "claude-sonnet-5-5": (2.0, 10.0),
         "claude-sonnet-5": (3.0, 15.0),  // promotional rate applied below
         "claude-sonnet-4-6": (3.0, 15.0),
         "claude-sonnet-4-5": (3.0, 15.0),
         "claude-sonnet-4": (3.0, 15.0),
+        "claude-haiku-5-5": (0.10, 0.50),
         "claude-haiku-4-5": (1.0, 5.0),
         // Pre-Claude-4 IDs put the generation before the family
         // ("claude-3-5-haiku-20241022"), so they need their own keys — the
@@ -164,9 +172,8 @@ enum CostEstimator {
         "claude-3-5-haiku": (0.80, 4.0),
     ]
 
-    // Cache rates are fixed multiples of the model's input rate rather than
-    // separate per-model constants: reads are 0.1x, 5-minute writes 1.25x,
-    // and 1-hour writes 2x. Verified against every row of the published table.
+    // Cache writes are fixed multiples of the input rate. Cache reads vary for
+    // the newest models, so their model-specific multipliers are applied below.
     private static let cacheReadMultiplier = 0.10
     private static let cacheWrite5mMultiplier = 1.25
     private static let cacheWrite1hMultiplier = 2.0
@@ -199,11 +206,23 @@ enum CostEstimator {
         let perMillion = { (tokens: Int, price: Double) in
             Double(tokens) / 1_000_000.0 * price
         }
-        let tokenCost = perMillion(usage.input, rate.input)
-            + perMillion(usage.output, rate.output)
-            + perMillion(usage.cacheRead, rate.input * cacheReadMultiplier)
-            + perMillion(usage.cacheWrite5m, rate.input * cacheWrite5mMultiplier)
-            + perMillion(usage.cacheWrite1h, rate.input * cacheWrite1hMultiplier)
+        let matchedKey = baseEntry(for: normalizedModelID(model))?.key
+        let cacheReadRate: Double
+        switch matchedKey {
+        case "claude-fable-5-1", "claude-mythos-5-1": cacheReadRate = 0.025
+        case "claude-opus-5-5", "claude-sonnet-5-5": cacheReadRate = 0.05
+        default: cacheReadRate = cacheReadMultiplier
+        }
+        // Haiku 5.5 prices the whole request at the higher tier when its
+        // prompt exceeds 100K tokens, including cache reads and writes.
+        let promptTokens = usage.input + usage.cacheRead + usage.cacheWrite
+        let effectiveRate: Rate = matchedKey == "claude-haiku-5-5" && promptTokens > 100_000
+            ? (0.50, 2.50) : rate
+        let tokenCost = perMillion(usage.input, effectiveRate.input)
+            + perMillion(usage.output, effectiveRate.output)
+            + perMillion(usage.cacheRead, effectiveRate.input * cacheReadRate)
+            + perMillion(usage.cacheWrite5m, effectiveRate.input * cacheWrite5mMultiplier)
+            + perMillion(usage.cacheWrite1h, effectiveRate.input * cacheWrite1hMultiplier)
 
         // Data residency scales token pricing only, not per-search charges.
         let residency = billing.inferenceGeo?.lowercased() == "us" ? usDataResidencyMultiplier : 1.0
@@ -255,6 +274,9 @@ enum CostEstimator {
         // Fast mode replaces the base rate outright where it is supported.
         if billing.speed?.lowercased() == "fast", fastModeModels.contains(matchedKey) {
             return fastModeRate
+        }
+        if billing.speed?.lowercased() == "fast", matchedKey == "claude-opus-5-5" {
+            return (8.0, 40.0)
         }
 
         if matchedKey == "claude-sonnet-5", billing.timestamp < sonnet5PromoEnd {

@@ -74,7 +74,7 @@ final class UpdateCheckService: ObservableObject {
         session: URLSession = .shared,
         defaults: UserDefaults = .standard,
         currentVersion: String? = nil,
-        latestReleaseAPI: URL = URL(string: "https://api.github.com/repos/chaoyupeng/claude-usage/releases/latest")!
+        latestReleaseAPI: URL = URL(string: "https://api.github.com/repos/chaoyupeng/ai-usage/releases/latest")!
     ) {
         self.session = session
         self.defaults = defaults
@@ -138,7 +138,7 @@ final class UpdateCheckService: ObservableObject {
             guard Self.shouldOffer(latest: tag, current: currentVersion, skipped: skipped) else { return }
 
             let page = (json["html_url"] as? String).flatMap(URL.init(string:))
-                ?? URL(string: "https://github.com/chaoyupeng/claude-usage/releases/latest")!
+                ?? URL(string: "https://github.com/chaoyupeng/ai-usage/releases/latest")!
             let update = AvailableUpdate(version: ReleaseVersion(tag)?.description ?? tag, pageURL: page)
             availableUpdate = update
             presentPrompt(for: update)
@@ -152,7 +152,7 @@ final class UpdateCheckService: ObservableObject {
     /// Shows the update prompt and acts on the choice.
     func presentPrompt(for update: AvailableUpdate) {
         let alert = NSAlert()
-        alert.messageText = "Claude Usage \(update.version) is available"
+        alert.messageText = "AI Usage \(update.version) is available"
         alert.informativeText = """
             You have \(currentVersion). Opening the download page will show the \
             latest release; replace the app in Applications to update.

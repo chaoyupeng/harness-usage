@@ -5,8 +5,14 @@ private enum PopoverTab: String, CaseIterable {
     case tokens = "Tokens"
 }
 
+private enum UsageProvider: String {
+    case claude = "Claude"
+    case codex = "Codex"
+}
+
 struct PopoverView: View {
     @ObservedObject var service: UsageService
+    @ObservedObject var codexService: CodexUsageService
     @ObservedObject var historyService: UsageHistoryService
     @ObservedObject var notificationService: NotificationService
     @ObservedObject var appUpdater: AppUpdater
@@ -15,15 +21,25 @@ struct PopoverView: View {
     @ObservedObject var updateCheck: UpdateCheckService
     @AppStorage("setupComplete") private var setupComplete = false
     @State private var selectedTab: PopoverTab = .usage
+    @State private var selectedProvider: UsageProvider = .claude
 
     /// Height held by the tab area regardless of which tab is showing, so the
     /// popover never resizes. Sized to show the Usage tab comfortably; the
     /// taller Tokens dashboard scrolls within it.
     private static let tabContentHeight: CGFloat = 520
 
+    private var activeProvider: UsageProvider {
+        codexService.isAvailable && (!service.isAuthenticated || selectedProvider == .codex)
+            ? .codex : .claude
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !setupComplete && !service.isAuthenticated {
+            if codexService.status == .checking && !service.isAuthenticated {
+                ProgressView("Checking Claude and Codex…")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 25)
+            } else if !setupComplete && !service.isAuthenticated && !codexService.isAvailable {
                 SetupView(
                     service: service,
                     notificationService: notificationService,
@@ -31,10 +47,10 @@ struct PopoverView: View {
                 )
             } else {
                 HStack(spacing: 6) {
-                    Text("Claude Usage")
+                    Text("AI Usage")
                         .font(.system(.title3, design: .rounded).bold())
                     Spacer()
-                    if let email = service.accountEmail {
+                    if activeProvider == .claude, let email = service.accountEmail {
                         Text(email)
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
@@ -42,7 +58,18 @@ struct PopoverView: View {
                     }
                 }
 
-                if !service.isAuthenticated {
+                if service.isAuthenticated && codexService.isAvailable {
+                    Picker("Provider", selection: $selectedProvider) {
+                        Text("Claude").tag(UsageProvider.claude)
+                        Text("Codex").tag(UsageProvider.codex)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+
+                if activeProvider == .codex {
+                    codexView
+                } else if !service.isAuthenticated {
                     signInView
                 } else {
                     usageView
@@ -78,6 +105,12 @@ struct PopoverView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+
+            if codexService.status == .signedOut {
+                Text("Codex is installed. Run `codex login` to show its usage here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
 
         if let error = service.lastError {
@@ -153,6 +186,35 @@ struct PopoverView: View {
         footerBar
     }
 
+    private var codexView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 15) {
+                    Text("Codex")
+                        .font(.headline)
+                    if let primary = codexService.limits?.primary {
+                        CodexLimitRow(window: primary)
+                    }
+                    if let secondary = codexService.limits?.secondary {
+                        CodexLimitRow(window: secondary)
+                    }
+                    if let updated = codexService.lastUpdated {
+                        Text("Updated \(updated, style: .relative) ago")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: Self.tabContentHeight, alignment: .topLeading)
+            }
+            .scrollIndicators(.hidden)
+            .frame(height: Self.tabContentHeight, alignment: .top)
+
+            if let error = codexService.lastError { errorBanner(error) }
+            thinSeparator
+            footerBar
+        }
+    }
+
     @ViewBuilder
     private var usageTabContent: some View {
         UsageBucketRow(
@@ -221,9 +283,13 @@ struct PopoverView: View {
 
     private var footerBar: some View {
         HStack(spacing: 10) {
-            settingsButton
+            if activeProvider == .claude { settingsButton }
             Spacer()
-            if selectedTab == .usage {
+            if activeProvider == .codex {
+                footerButton(icon: "arrow.clockwise", label: "Refresh") {
+                    Task { await codexService.refresh() }
+                }
+            } else if selectedTab == .usage {
                 footerButton(icon: "arrow.clockwise", label: "Refresh") {
                     Task { await service.fetchUsage() }
                 }
@@ -272,6 +338,37 @@ struct PopoverView: View {
         .buttonStyle(.borderless)
         .foregroundStyle(.tertiary)
         .help("Quit")
+    }
+}
+
+// MARK: - Setup (first launch)
+
+private struct CodexLimitRow: View {
+    let window: CodexLimitWindow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(window.label).font(.subheadline)
+                Spacer()
+                Text(window.usedPercent.map { "\(Int(round($0)))%" } ?? "—")
+                    .font(.subheadline.monospacedDigit().bold())
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3).fill(.quaternary)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(colorForPct(window.fractionUsed).gradient)
+                        .frame(width: geometry.size.width * window.fractionUsed)
+                }
+            }
+            .frame(height: 6)
+            if let reset = window.resetsAt {
+                Text("Resets \(reset, style: .relative)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
     }
 }
 

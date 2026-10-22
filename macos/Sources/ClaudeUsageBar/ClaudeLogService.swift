@@ -205,7 +205,8 @@ enum ClaudeLogParser {
                 requestId: json["requestId"] as? String ?? "",
                 speed: usageDict["speed"] as? String,
                 inferenceGeo: usageDict["inference_geo"] as? String,
-                webSearchRequests: webSearches
+                webSearchRequests: webSearches,
+                recordedCostUSD: (json["costUSD"] as? NSNumber)?.doubleValue
             ))
         }
 
@@ -264,14 +265,17 @@ enum ClaudeLogParser {
                 let carriedSpeed = merged.speed
                 let carriedGeo = merged.inferenceGeo
                 let carriedSearches = merged.webSearchRequests
+                let carriedCost = merged.recordedCostUSD
                 merged = record
                 merged.speed = merged.speed ?? carriedSpeed
                 merged.inferenceGeo = merged.inferenceGeo ?? carriedGeo
                 merged.webSearchRequests = max(merged.webSearchRequests, carriedSearches)
+                merged.recordedCostUSD = merged.recordedCostUSD ?? carriedCost
             } else {
                 merged.speed = merged.speed ?? record.speed
                 merged.inferenceGeo = merged.inferenceGeo ?? record.inferenceGeo
                 merged.webSearchRequests = max(merged.webSearchRequests, record.webSearchRequests)
+                merged.recordedCostUSD = merged.recordedCostUSD ?? record.recordedCostUSD
             }
             bestByKey[key] = merged
         }
@@ -300,13 +304,15 @@ enum ClaudeLogParser {
         }
 
         for record in deduplicate(records) {
-            let recordCost = CostEstimator.estimateCost(
-                model: record.model, usage: record.usage, billing: record.billing
-            )
+            let hasRecordedCost = record.recordedCostUSD.map { $0.isFinite && $0 >= 0 } ?? false
+            let recordCost = hasRecordedCost
+                ? record.recordedCostUSD!
+                : CostEstimator.estimateCost(model: record.model, usage: record.usage, billing: record.billing)
+            if hasRecordedCost { stats.recordedCostCount += 1 }
             stats.totalUsage += record.usage
             stats.totalMessages += 1
             stats.estimatedCost += recordCost
-            if !CostEstimator.hasPublishedRate(for: record.model) {
+            if !hasRecordedCost && !CostEstimator.hasPublishedRate(for: record.model) {
                 stats.modelsWithoutPublishedRate.insert(record.model)
             }
 
