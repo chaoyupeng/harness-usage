@@ -1,0 +1,23 @@
+name: macOS release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify app
+        run: make zip
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" macos/ClaudeUsageBar.zip \
+            --title "AI Usage $GITHUB_REF_NAME" \
+            --notes "Adds automatic Claude and Codex usage detection and updates Claude API-equivalent cost estimates using current pricing and recorded costs when available. macOS 14 or later; the app is ad-hoc signed and not notarized."
